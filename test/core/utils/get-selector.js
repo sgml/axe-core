@@ -14,6 +14,18 @@ function makeShadowTreeGetSelector(node) {
 	div.appendChild(createContentGetSelector());
 }
 
+function makeNonunique(fixture) {
+	'use strict';
+	var nonUnique = '<div><div><div></div></div></div>';
+	fixture.innerHTML = '<main>' +
+		nonUnique + nonUnique + nonUnique +
+		'<div><div></div></div>';
+	var node = document.createElement('div');
+	var parent = fixture.querySelector('div:nth-child(4) > div');
+	parent.appendChild(node);
+	return node;
+}
+
 describe('axe.utils.getSelector', function () {
 	'use strict';
 
@@ -134,7 +146,7 @@ describe('axe.utils.getSelector', function () {
 
 		var sel = axe.utils.getSelector(node);
 
-		assert.equal(sel, '#fixture > div.dogs.cats');
+		assert.equal(sel, '.dogs.cats');
 
 		var result = document.querySelectorAll(sel);
 		assert.lengthOf(result, 1);
@@ -231,91 +243,67 @@ describe('axe.utils.getSelector', function () {
 
 		assert.equal(
 			axe.utils.getSelector(node),
-			'#fixture > div[role="menuitem"]'
+			'div[role="menuitem"]'
 		);
 	});
 
 	it('should use href and src attributes', function () {
 		var link = document.createElement('a');
+		link.setAttribute('href', '//deque.com/thang/');
+		fixture.appendChild(link);
+		link = document.createElement('a');
 		link.setAttribute('href', '//deque.com/about/');
 		fixture.appendChild(link);
 
 		var img = document.createElement('img');
+		img.setAttribute('src', '//deque.com/thang.png');
+		fixture.appendChild(img);
+		img = document.createElement('img');
 		img.setAttribute('src', '//deque.com/logo.png');
 		fixture.appendChild(img);
 
 		assert.equal(
 			axe.utils.getSelector(link),
-			'#fixture > a[href$="about/"]'
+			'a[href$="about/"]'
 		);
 		assert.equal(
 			axe.utils.getSelector(img),
-			'#fixture > img[src$="logo.png"]'
+			'img[src$="logo.png"]'
 		);
 	});
 
-	it('should give use two features on the first element', function () {
+	it('should not generate universal selectors', function () {
 		var node = document.createElement('div');
 		node.setAttribute('role', 'menuitem');
 		fixture.appendChild(node);
 
 		assert.equal(
 			axe.utils.getSelector(node),
-			'#fixture > div[role="menuitem"]'
-		);
-		
-		node.className = 'dqpl-btn-primary';
-		assert.equal(
-			axe.utils.getSelector(node),
-			'#fixture > [role="menuitem"].dqpl-btn-primary'
-		);
-	});
-
-	it('should give use one features on the subsequent elements', function () {
-		var span = document.createElement('span');
-		var node = document.createElement('div');
-		node.setAttribute('role', 'menuitem');
-		span.className = 'expand-icon';
-		node.appendChild(span);
-		fixture.appendChild(node);
-
-		assert.equal(
-			axe.utils.getSelector(span),
-			'[role="menuitem"] > span.expand-icon'
-		);
-	});
-
-	it('should prioritize uncommon tagNames', function () {
-		var node = document.createElement('button');
-		node.setAttribute('role', 'menuitem');
-		node.className = 'dqpl-btn-primary';
-		fixture.appendChild(node);
-		assert.equal(
-			axe.utils.getSelector(node),
-			'#fixture > button[role="menuitem"]'
+			'div[role="menuitem"]'
 		);
 	});
 
 	it('should add [type] to input elements', function () {
 		var node = document.createElement('input');
 		node.type = 'password';
-		node.className = 'dqpl-textfield';
 		fixture.appendChild(node);
 		assert.equal(
 			axe.utils.getSelector(node),
-			'#fixture > input[type="password"].dqpl-textfield'
+			'input[type="password"]'
 		);
 	});
 
-	it('should use the name property', function () {
+	it('should use the name property if that distinguishes', function () {
 		var node = document.createElement('input');
 		node.type = 'text';
+		fixture.appendChild(node);
+		node = document.createElement('input');
+		node.type = 'text';
 		node.name = 'username';
-		node.className = 'dqpl-textfield';
 		fixture.appendChild(node);
 		assert.equal(
 			axe.utils.getSelector(node),
-			'#fixture > input[type="text"][name="username"]'
+			'input[type="text"][name="username"]'
 		);
 	});
 
@@ -348,6 +336,20 @@ describe('axe.utils.getSelector', function () {
 				'.parent > div > #myinput'
 			]);
 		}
+	});
+	it('should correctly calculate unique selector when no discernable features', function () {
+		var node = makeNonunique(fixture);
+		var sel = axe.utils.getSelector(node, {});
+		var mine = document.querySelector(sel);
+		assert.isTrue(mine === node);
+	});
+	it('should not traverse further up than required when no discernable features', function () {
+		var node = makeNonunique(fixture);
+		var top = fixture.querySelector('div:nth-child(4)');
+		var sel = axe.utils.getSelector(node, {});
+		sel = sel.substring(0, sel.indexOf(' >'));
+		var test = document.querySelector(sel);
+		assert.isTrue(test === top);
 	});
 
 });
